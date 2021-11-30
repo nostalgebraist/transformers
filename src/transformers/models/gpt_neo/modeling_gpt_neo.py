@@ -171,9 +171,17 @@ def rotate_every_two(x):
     x = torch.stack((-x2, x1), axis=-1)
     return rearrange(x, '... d j -> ... (d j)')
 
+def rotate_half(x):
+    x1, x2 = x[..., :x.shape[-1] // 2], x[..., x.shape[-1] // 2:]
+    return torch.cat((-x2, x1), dim=x1.ndim - 1)
+
 def apply_rotary_pos_emb(x, sincos, offset=0):
     sin, cos = map(lambda t: repeat(t[offset:x.shape[1]+offset,:], "n d -> () n () (d j)", j=2), sincos)
     return (x * cos) + (rotate_every_two(x) * sin)
+
+def apply_rotary_pos_emb_half(x, sincos, offset=0):
+    sin, cos = map(lambda t: repeat(t[offset:x.shape[1]+offset,:], "n d -> () n () (j d)", j=2), sincos)
+    return (x * cos) + (rotate_half(x) * sin)
 
 class GPTNeoAttentionMixin:
     """
@@ -282,6 +290,9 @@ class GPTNeoSelfAttention(nn.Module, GPTNeoAttentionMixin):
         self.out_proj = nn.Linear(self.embed_dim, self.embed_dim, bias=not config.jax)
         self.full_bf16 = config.full_bf16
         self.rotary = config.rotary
+        self.rotary_func = apply_rotary_pos_emb
+        if config.rotary_half:
+            self.rotary_func = apply_rotary_pos_emb_half
         self.rotary_dim = self.head_dim
         if config.rotary_dim is not None:
             self.rotary_dim = config.rotary_dim
@@ -321,14 +332,14 @@ class GPTNeoSelfAttention(nn.Module, GPTNeoAttentionMixin):
                 q_rot = query[:, :, :, :self.rotary_dim]
                 q_pass = query[:, :, :, self.rotary_dim:]
 
-                k_rot = apply_rotary_pos_emb(k_rot, (self.sin, self.cos), offset=offset).to(k_rot.dtype)
-                q_rot = apply_rotary_pos_emb(q_rot, (self.sin, self.cos), offset=offset).to(q_rot.dtype)
+                k_rot = self.rotary_func(k_rot, (self.sin, self.cos), offset=offset).to(k_rot.dtype)
+                q_rot = self.rotary_func(q_rot, (self.sin, self.cos), offset=offset).to(q_rot.dtype)
 
                 key = torch.cat([k_rot, k_pass], dim=-1)
                 query = torch.cat([q_rot, q_pass], dim=-1)
             elif self.rotary:
-                key = apply_rotary_pos_emb(key, (self.sin, self.cos), offset=offset).to(key.dtype)
-                query = apply_rotary_pos_emb(query, (self.sin, self.cos), offset=offset).to(query.dtype)
+                key = self.rotary_func(key, (self.sin, self.cos), offset=offset).to(key.dtype)
+                query = self.rotary_func(query, (self.sin, self.cos), offset=offset).to(query.dtype)
             key = key.permute(0, 2, 1, 3)
             query = query.permute(0, 2, 1, 3)
 
