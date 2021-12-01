@@ -160,30 +160,6 @@ def to_gpu(x, config):
     else:
         return x
 
-class RotaryEmbedding(torch.nn.Module):
-    def __init__(self, dim, base=10000, precision=torch.half):
-        super().__init__()
-        inv_freq = 1. / (base ** (torch.arange(0, dim, 2).float() / dim))
-        self.register_buffer('inv_freq', inv_freq)
-        self.seq_len_cached = None
-        self.cos_cached = None
-        self.sin_cached = None
-        self.precision = precision
-    def forward(self, seq_dim=1, seq_len=None):
-        if seq_len != self.seq_len_cached:
-            self.seq_len_cached = seq_len
-            t = torch.arange(seq_len).type_as(self.inv_freq)
-            freqs = torch.einsum('i,j->ij', t, self.inv_freq)
-            emb = torch.cat((freqs, freqs), dim=-1)
-            if self.precision == torch.bfloat16:
-                emb = emb.float()
-            self.cos_cached = emb.cos()
-            self.sin_cached = emb.sin()
-            if self.precision == torch.bfloat16:
-                self.cos_cached = self.cos_cached.bfloat16()
-                self.sin_cached = self.sin_cached.bfloat16()
-        return self.cos_cached, self.sin_cached
-
 def fixed_pos_embedding(dim=None, seq_len=None):
     inv_freq = 1. / (10000 ** (torch.arange(0, dim, 2) / dim))
     sinusoid_inp = torch.einsum('i , j -> i j', torch.arange(seq_len), inv_freq).float()
@@ -321,10 +297,7 @@ class GPTNeoSelfAttention(nn.Module, GPTNeoAttentionMixin):
         if config.rotary_dim is not None:
             self.rotary_dim = config.rotary_dim
         if self.rotary:
-            if config.rotary_half:
-                sin, cos = RotaryEmbedding(dim=self.rotary_dim).forward(seq_dim=1, seq_len=max_positions)
-            else:
-                sin, cos = fixed_pos_embedding(dim=self.rotary_dim, seq_len=max_positions)
+            sin, cos = fixed_pos_embedding(dim=self.rotary_dim, seq_len=max_positions)
             self.register_buffer("sin", sin)
             self.register_buffer("cos", cos)
 
