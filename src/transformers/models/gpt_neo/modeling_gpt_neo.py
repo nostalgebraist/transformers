@@ -321,7 +321,7 @@ class GPTNeoSelfAttention(nn.Module, GPTNeoAttentionMixin):
         if config.rotary_dim is not None:
             self.rotary_dim = config.rotary_dim
         if self.rotary:
-            if self.rotary_half:
+            if config.rotary_half:
                 sin, cos = RotaryEmbedding(dim=self.rotary_dim).forward(seq_dim=1, seq_len=max_positions)
             else:
                 sin, cos = fixed_pos_embedding(dim=self.rotary_dim, seq_len=max_positions)
