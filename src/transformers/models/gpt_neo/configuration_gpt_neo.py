@@ -119,7 +119,7 @@ class GPTNeoConfig(PretrainedConfig):
         eos_token_id=50256,
         rotary=False,
         rotary_dim=None,
-        rotary_half=False
+        rotary_half=False,
         jax=False,
         model_device=None, # one of: None (auto), "cpu", "cuda", "cuda:0" etc.
         model_dtype="fp16", # one of: "fp16", "fp32", "bf16"
