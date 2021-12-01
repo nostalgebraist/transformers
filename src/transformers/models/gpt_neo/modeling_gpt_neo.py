@@ -284,9 +284,9 @@ class GPTNeoSelfAttention(nn.Module, GPTNeoAttentionMixin):
                 f"embed_dim must be divisible by num_heads (got `embed_dim`: {self.embed_dim} and `num_heads`: {self.num_heads})."
             )
 
-        self.k_proj = nn.Linear(self.embed_dim, self.embed_dim, bias=False)
-        self.v_proj = nn.Linear(self.embed_dim, self.embed_dim, bias=False)
-        self.q_proj = nn.Linear(self.embed_dim, self.embed_dim, bias=False)
+        self.k_proj = nn.Linear(self.embed_dim, self.embed_dim, bias=config.rotary_half)
+        self.v_proj = nn.Linear(self.embed_dim, self.embed_dim, bias=config.rotary_half)
+        self.q_proj = nn.Linear(self.embed_dim, self.embed_dim, bias=config.rotary_half)
         self.out_proj = nn.Linear(self.embed_dim, self.embed_dim, bias=not config.jax)
         self.full_bf16 = config.full_bf16
         self.rotary = config.rotary
