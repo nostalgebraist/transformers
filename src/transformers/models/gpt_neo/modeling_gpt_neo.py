@@ -181,7 +181,17 @@ def apply_rotary_pos_emb(x, sincos, offset=0):
     sin, cos = map(lambda t: repeat(t[offset:x.shape[1]+offset,:], "n d -> () n () (d j)", j=2), sincos)
     return (x * cos) + (rotate_every_two(x) * sin)
 
+@torch.jit.script
+def apply_rotary_pos_emb_half_jit(x, sin, cos, offset:int=0):
+    sin = sin[None, offset:x.shape[1]+offset, None, :]
+    cos = cos[None, offset:x.shape[1]+offset, None, :]
+    sin = torch.cat((sin, sin), dim=-1)
+    cos = torch.cat((cos, cos), dim=-1)
+    return (x * cos) + (rotate_half(x) * sin)
+
 def apply_rotary_pos_emb_half(x, sincos, offset=0):
+    if x.dtype == torch.float16:
+        return apply_rotary_pos_emb_half_jit(x, sincos[0], sincos[1], offset)
     sin, cos = map(lambda t: repeat(t[offset:x.shape[1]+offset,:], "n d -> () n () (j d)", j=2), sincos)
     return (x * cos) + (rotate_half(x) * sin)
 
