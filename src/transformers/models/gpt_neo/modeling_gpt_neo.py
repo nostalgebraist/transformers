@@ -160,9 +160,11 @@ def to_gpu(x, config):
     else:
         return x
 
-def fixed_pos_embedding(dim=None, seq_len=None):
-    inv_freq = 1. / (10000 ** (torch.arange(0, dim, 2) / dim))
-    sinusoid_inp = torch.einsum('i , j -> i j', torch.arange(seq_len), inv_freq).float()
+def fixed_pos_embedding(dim=None, seq_len=None, x=None):
+    if x is None:
+        x = torch.empty(0)
+    inv_freq = 1. / (10000 ** (torch.arange(0, dim, 2) / dim)).to(x.dtype).to(x.device)
+    sinusoid_inp = torch.einsum('i , j -> i j', torch.arange(seq_len).to(x.device), inv_freq).float()
     return torch.sin(sinusoid_inp), torch.cos(sinusoid_inp)
 
 def rotate_every_two(x):
@@ -297,7 +299,10 @@ class GPTNeoSelfAttention(nn.Module, GPTNeoAttentionMixin):
         if config.rotary_dim is not None:
             self.rotary_dim = config.rotary_dim
         if self.rotary:
-            sin, cos = fixed_pos_embedding(dim=self.rotary_dim, seq_len=max_positions)
+            if config.rotary_half:
+                sin, cos = fixed_pos_embedding(dim=self.rotary_dim, seq_len=max_positions, x=to_gpu(torch.empty(0), config))
+            else:
+                sin, cos = fixed_pos_embedding(dim=self.rotary_dim, seq_len=max_positions)
             self.register_buffer("sin", sin)
             self.register_buffer("cos", cos)
 
