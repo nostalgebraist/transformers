@@ -279,7 +279,10 @@ class GPTNeoSelfAttention(nn.Module, GPTNeoAttentionMixin):
                 bias,
             )
 
-        self.register_buffer("masked_bias", torch.tensor(-1e9))
+        if config.rotary_half:
+            self.register_buffer("masked_bias", torch.tensor(-10000))
+        else:
+            self.register_buffer("masked_bias", torch.tensor(-1e9))
 
         self.attn_dropout = nn.Dropout(config.attention_dropout)
         self.resid_dropout = nn.Dropout(config.resid_dropout)
