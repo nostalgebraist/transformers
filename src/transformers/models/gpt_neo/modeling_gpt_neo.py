@@ -451,7 +451,8 @@ class GPTNeoBlock(nn.Module):
         self.ln_1 = nn.LayerNorm(hidden_size, eps=config.layer_norm_epsilon)
         self.attn = GPTNeoAttention(config, layer_id)
         self.jax = config.jax
-        if not self.jax:
+        self.rotary_half = config.rotary_half
+        if not self.jax or self.rotary_half:
             self.ln_2 = nn.LayerNorm(hidden_size, eps=config.layer_norm_epsilon)
         self.mlp = GPTNeoMLP(inner_dim, config)
 
@@ -478,7 +479,10 @@ class GPTNeoBlock(nn.Module):
         outputs = attn_outputs[1:]
         
         if self.jax:
-            feed_forward_hidden_states = self.mlp(hidden_states)
+            if self.rotary_half:
+                feed_forward_hidden_states = self.mlp(self.ln_2(hidden_states))
+            else:
+                feed_forward_hidden_states = self.mlp(hidden_states)
             hidden_states = attn_output + feed_forward_hidden_states + residual
         else:
             # residual connection
