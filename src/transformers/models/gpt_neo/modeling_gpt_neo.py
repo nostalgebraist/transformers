@@ -426,6 +426,11 @@ class GPTNeoAttention(nn.Module):
         return outputs
 
 
+@torch.jit.script
+def bias_gelu(bias, y):
+    x = bias + y
+    return x * 0.5 * (1.0 + torch.tanh(0.79788456 * x * (1 + 0.044715 * x * x)))
+
 class GPTNeoMLP(nn.Module):
     def __init__(self, intermediate_size, config):  # in MLP: intermediate_size= 4 * hidden_size
         super().__init__()
@@ -434,10 +439,21 @@ class GPTNeoMLP(nn.Module):
         self.c_proj = nn.Linear(intermediate_size, embed_dim)
         self.act = ACT2FN[config.activation_function]
         self.dropout = nn.Dropout(config.resid_dropout)
+        self.rotary_half = config.rotary_half
+        self.modified_bias = False
+        self.need_modify = True#config.activation_function == "gelu_fast"
 
     def forward(self, hidden_states):
+        if self.rotary_half and not self.modified_bias and self.need_modify:
+            bias = self.c_fc.bias
+            self.c_fc.bias = None
+            self.register_buffer("bias_fc", bias)
+            self.modified_bias = True
         hidden_states = self.c_fc(hidden_states)
-        hidden_states = self.act(hidden_states)
+        if self.rotary_half and self.need_modify:
+            hidden_states = bias_gelu(self.bias_fc, hidden_states)
+        else:
+            hidden_states = self.act(hidden_states)
         hidden_states = self.c_proj(hidden_states)
         hidden_states = self.dropout(hidden_states)
         return hidden_states
