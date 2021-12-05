@@ -445,10 +445,16 @@ class GPTNeoMLP(nn.Module):
 
     def forward(self, hidden_states):
         if self.rotary_half and not self.modified_bias and self.need_modify:
-            bias = self.c_fc.bias
-            self.c_fc.bias = None
-            self.register_buffer("bias_fc", bias)
-            self.modified_bias = True
+            try:
+                if self.bias_fc is not None:
+                    self.modified_bias = True
+            except:
+                pass
+            if not self.modified_bias:
+                bias = self.c_fc.bias
+                self.c_fc.bias = None
+                self.register_buffer("bias_fc", bias)
+                self.modified_bias = True
         hidden_states = self.c_fc(hidden_states)
         if self.rotary_half and self.need_modify:
             hidden_states = bias_gelu(self.bias_fc, hidden_states)
