@@ -302,7 +302,7 @@ class GPTNeoSelfAttention(nn.Module, GPTNeoAttentionMixin):
         self.k_proj = nn.Linear(self.embed_dim, self.embed_dim, bias=config.rotary_half)
         self.v_proj = nn.Linear(self.embed_dim, self.embed_dim, bias=config.rotary_half)
         self.q_proj = nn.Linear(self.embed_dim, self.embed_dim, bias=config.rotary_half)
-        self.out_proj = nn.Linear(self.embed_dim, self.embed_dim, bias=not config.jax)
+        self.out_proj = nn.Linear(self.embed_dim, self.embed_dim, bias=not config.jax or config.rotary_half)
         self.full_bf16 = config.full_bf16
         self.rotary = config.rotary
         self.rotary_func = apply_rotary_pos_emb
@@ -496,7 +496,7 @@ class GPTNeoBlock(nn.Module):
         
         if self.jax:
             if self.rotary_half:
-                feed_forward_hidden_states = self.mlp(self.ln_2(hidden_states))
+                feed_forward_hidden_states = self.mlp(self.ln_2(residual))
             else:
                 feed_forward_hidden_states = self.mlp(hidden_states)
             hidden_states = attn_output + feed_forward_hidden_states + residual
