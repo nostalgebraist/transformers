@@ -228,8 +228,8 @@ class GPTNeoAttentionMixin:
         new_shape = tensor.size()[:-2] + (num_heads * attn_head_size,)
         return tensor.view(new_shape)
 
-    def _attn(self, query, key, value, causal_mask, masked_bias, attn_dropout, attention_mask=None, head_mask=None, scale_attn=None, full_bf16=False):
-        if not full_bf16 and query.dtype is torch.bfloat16:
+    def _attn(self, query, key, value, causal_mask, masked_bias, attn_dropout, attention_mask=None, head_mask=None, scale_attn=None, full_bf16=False, rotary_half=False):
+        if rotary_false or not full_bf16 and query.dtype is torch.bfloat16:
             attn_weights = torch.matmul(query.float(), key.transpose(-1, -2).float())
         else:
             attn_weights = torch.matmul(query, key.transpose(-1, -2))
@@ -305,6 +305,7 @@ class GPTNeoSelfAttention(nn.Module, GPTNeoAttentionMixin):
         self.out_proj = nn.Linear(self.embed_dim, self.embed_dim, bias=not config.jax or config.rotary_half)
         self.full_bf16 = config.full_bf16
         self.rotary = config.rotary
+        self.rotary_half = config.rotary_half
         self.rotary_func = apply_rotary_pos_emb
         if config.rotary_half:
             self.rotary_func = apply_rotary_pos_emb_half
@@ -376,7 +377,7 @@ class GPTNeoSelfAttention(nn.Module, GPTNeoAttentionMixin):
         causal_mask = self.bias[:, :, key_length - query_length : key_length, :key_length]
 
         attn_output, attn_weights = self._attn(
-            query, key, value, causal_mask, self.masked_bias, self.attn_dropout, attention_mask, head_mask, self.scale_attn, self.full_bf16
+            query, key, value, causal_mask, self.masked_bias, self.attn_dropout, attention_mask, head_mask, self.scale_attn, self.full_bf16, self.rotary_half
         )
 
         attn_output = self._merge_heads(attn_output, self.num_heads, self.head_dim)
